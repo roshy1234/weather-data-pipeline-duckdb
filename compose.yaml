@@ -22,19 +22,20 @@ services:
       nofile:
         soft: 262144
         hard: 262144
-  grafana:
-    image: grafana/grafana-oss:latest
-    container_name: weather-grafana
-    ports:
-      - "3000:3000"
-    environment:
-      # Installs the official ClickHouse data source plugin on startup
-      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
-      # Forces the Go garbage collector to keep memory low
-      - GOMEMLIMIT=100MiB
-    volumes:
-      - grafana-storage:/var/lib/grafana
-    restart: unless-stopped
+        
+  # grafana:
+  #   image: grafana/grafana-oss:latest
+  #   container_name: weather-grafana
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     # Installs the official ClickHouse data source plugin on startup
+  #     - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
+  #     # Forces the Go garbage collector to keep memory low
+  #     - GOMEMLIMIT=100MiB
+  #   volumes:
+  #     - grafana-storage:/var/lib/grafana
+  #   restart: unless-stopped
 
     # If you have a custom network defined for ClickHouse, add it here too
 
@@ -62,5 +63,5 @@ services:
 
 volumes:
   clickhouse_data:
-  grafana-storage:
+  # grafana-storage:
 
