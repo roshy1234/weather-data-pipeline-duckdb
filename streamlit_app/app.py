@@ -1,6 +1,6 @@
 import os
 
-import clickhouse_connect
+import duckdb  # type: ignore
 import streamlit as st  # type: ignore[import-not-found]
 from dotenv import load_dotenv
 
@@ -13,19 +13,15 @@ st.title("🌤️ Weather Analytics Hub")
 # 1. Safely cache the database connection to prevent memory leaks
 @st.cache_resource
 def get_db_client():
-    return clickhouse_connect.get_client(
-        host=os.getenv("CLICKHOUSE_HOST"),
-        port=os.getenv("CLICKHOUSE_PORT"),
-        username=os.getenv("CLICKHOUSE_USER"),
-        password=os.getenv("CLICKHOUSE_PASSWORD")
-    )
+    token = os.getenv("MOTHERDUCK_TOKEN")
+    return duckdb.connect(f"md:weather_warehouse?motherduck_token={token}")
 
 # 2. Cache the actual data for 5 minutes
 @st.cache_data(ttl=300)
 def load_data():
     client = get_db_client()
     
-    # Query updated to pull all 4 metrics from the mart schema
+    # Query updated to pull from your dbt analytics schema
     query = """
         SELECT 
             d.city_name,
@@ -34,24 +30,24 @@ def load_data():
             f.humidity_percentage,
             f.precipitation_mm,
             f.wind_speed_kmh
-        FROM weather_warehouse_analytics.fact_weather f
-        JOIN weather_warehouse_analytics.dim_location d
+        FROM analytics.fact_weather f
+        JOIN analytics.dim_location d
           ON f.location_id = d.location_id
         ORDER BY f.forecast_time DESC
-        LIMIT 300
+        LIMIT 150
     """
-    return client.query_df(query)
+    # DuckDB natively converts query results to pandas DataFrames
+    return client.execute(query).df()
 
 try:
     df = load_data()
-    st.success("Successfully connected to ClickHouse!")
+    st.success("Successfully connected to MotherDuck!")
     
     # Hide the raw data table inside an expander to save UI space
     with st.expander("View Raw Data Table"):
         st.dataframe(df)
 
     # 3. Draw the 4 lightweight graphs using Streamlit columns
-    # Passing color="city_name" automatically draws a separate line for each city
     col1, col2 = st.columns(2)
 
     with col1:

@@ -2,11 +2,14 @@
 requests
 python-dotenv
 
-# ClickHouse loader
-clickhouse-connect
+# Data parsing and manipulation
+pandas
+
+# MotherDuck / DuckDB loader
+duckdb
 
 # dbt transformations
-dbt-clickhouse
+dbt-duckdb
 
 # Prefect orchestration
 prefect

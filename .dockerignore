@@ -18,11 +18,14 @@ streamlit_app/
 tests/
 logs/
 data/
+sql/
 
 # 5. Project Metadata (Optional but keeps image clean)
 compose.yaml
 README.md
 LICENSE
 
-# Database configurations
-clickhouse_config/
+# weather_transform_files 
+weather_transform/target/
+weather_transform/logs/
+weather_transform/.user.yml

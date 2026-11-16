@@ -1,44 +1,21 @@
 services:
-
-        
-  # grafana:
-  #   image: grafana/grafana-oss:latest
-  #   container_name: weather-grafana
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     # Installs the official ClickHouse data source plugin on startup
-  #     - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
-  #     # Forces the Go garbage collector to keep memory low
-  #     - GOMEMLIMIT=100MiB
-  #   volumes:
-  #     - grafana-storage:/var/lib/grafana
-  #   restart: unless-stopped
-
-    # If you have a custom network defined for ClickHouse, add it here too
   prefect-worker:
-    image: roshyjamz/weather-worker:latest
+    image: roshyjamz/weather-pipeline-worker:latest
     container_name: prefect_weather_worker
     volumes:
+      # Keeps your processed raw JSON files safely on your local machine
       - ./data:/app/data
     env_file:
       - .env
-    command: python orchestrator.py
-    depends_on:
-      - clickhouse
     restart: unless-stopped
 
   streamlit:
-    image: roshyjamz/weather-dashboard:latest
+    image: roshyjamz/weather-streamlit-dashboard:latest
     container_name: weather_dashboard
     ports:
       - "8501:8501"
     env_file:       
       - .env
-    depends_on:
-      - clickhouse
+    restart: unless-stopped
 
-volumes:
-  clickhouse_data:
-  # grafana-storage:
 
