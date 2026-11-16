@@ -6,7 +6,7 @@ python-dotenv
 pandas
 
 # MotherDuck / DuckDB loader
-duckdb
+duckdb==1.5.6
 
 # dbt transformations
 dbt-duckdb
