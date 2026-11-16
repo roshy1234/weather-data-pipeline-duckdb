@@ -1,6 +1,6 @@
 SELECT 
-    -- Generate a unique Surrogate Key
-    lower(hex(MD5(concat(location_id, toString(forecast_time))))) AS weather_fact_id,
+    -- Generate a unique Surrogate Key natively in DuckDB
+    md5(location_id || forecast_time::VARCHAR) AS weather_fact_id,
     
     location_id,
     forecast_time,

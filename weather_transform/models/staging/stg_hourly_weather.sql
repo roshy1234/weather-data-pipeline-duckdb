@@ -1,7 +1,3 @@
-{{ config(
-    order_by=['location_id', 'forecast_time']
-) }}
-
 WITH deduplicated AS (
     SELECT 
         location_id,
