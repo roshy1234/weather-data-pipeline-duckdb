@@ -1,7 +1,7 @@
 services:
   prefect-worker:
     image: roshyjamz/weather-pipeline-worker:latest
-    container_name: prefect_weather_worker
+    container_name: prefect_worker
     volumes:
       # Keeps your processed raw JSON files safely on your local machine
       - ./data:/app/data
@@ -11,7 +11,7 @@ services:
 
   streamlit:
     image: roshyjamz/weather-streamlit-dashboard:latest
-    container_name: weather_dashboard
+    container_name: weather_streamlit_dashboard
     ports:
       - "8501:8501"
     env_file:       
