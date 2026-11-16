@@ -52,8 +52,8 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: | 
-            ${{ secrets.DOCKERHUB_USERNAME }}/weather-worker:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/weather-worker:${{ github.ref_name }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/weather-pipeline-worker:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/weather-pipeline-worker:${{ github.ref_name }}
 
       - name: Build & Push Dashboard
         uses: docker/build-push-action@v5
@@ -62,5 +62,5 @@ jobs:
           file: ./streamlit_app/Dockerfile
           push: true
           tags: | 
-            ${{ secrets.DOCKERHUB_USERNAME }}/weather-dashboard:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/weather-dashboard:${{ github.ref_name }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/weather-streamlit-dashboard:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/weather-streamlit-dashboard:${{ github.ref_name }}
