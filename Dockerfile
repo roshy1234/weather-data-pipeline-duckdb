@@ -1,4 +1,3 @@
-# Use a lightweight Python 3.10 base image
 FROM python:3.13-slim
 
 # Set the working directory inside the container
@@ -15,4 +14,4 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY . .
 
 # Run the worker in the foreground with unbuffered output
-CMD ["python", "-u", "orchestrator.py"]
+CMD ["python", "-u", "src/weather_pipeline/orchestrator.py"]
