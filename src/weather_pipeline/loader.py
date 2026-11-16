@@ -1,117 +1,57 @@
 import json
-import logging
 import os
-from datetime import datetime
+import shutil
 from pathlib import Path
 
-import clickhouse_connect
+import duckdb
+import pandas as pd
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-)
-
-logger = logging.getLogger(__name__)
-
-# Directory configuration
+MOTHERDUCK_TOKEN = os.getenv("MOTHERDUCK_TOKEN")
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-RAW_DATA_DIR = BASE_DIR / "data" / "raw"
-ARCHIVE_DIR = BASE_DIR / "data" / "processed"
+PROCESSED_DATA_DIR = BASE_DIR / "data" / "processed"
 
-def get_db_client():
-    """Establish a connection to the local ClickHouse instance."""
-    return clickhouse_connect.get_client(
-        host=os.getenv("CLICKHOUSE_HOST"),
-        port=os.getenv("CLICKHOUSE_PORT"),
-        username=os.getenv("CLICKHOUSE_USER"),
-        password=os.getenv("CLICKHOUSE_PASSWORD"),
-        database=os.getenv("CLICKHOUSE_DB"),
-    )
-
-def process_and_load_files() -> None:
-    """Read all JSON files in the raw directory and load them into ClickHouse."""
-    
-    if not RAW_DATA_DIR.exists():
-        logger.warning("Raw data directory does not exist. Run ingestion first.")
+def load_all_to_motherduck(file_paths: list[Path]) -> None:
+    if not file_paths:
         return
 
-    # Find all JSON files
-    json_files = list(RAW_DATA_DIR.glob("*.json"))
+    all_records = []
     
-    if not json_files:
-        logger.info("No new JSON files found to process.")
-        return
-
-    # Ensure archive directory exists
-    ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
-    
-    client = get_db_client()
-
-    for file_path in json_files:
-        logger.info("Processing %s", file_path.name)
+    # Read and parse all files
+    for file_path in file_paths:
+        with open(file_path, "r", encoding="utf-8") as f:
+            batch = json.load(f)
+            
+        payload = batch["response"]
+        hourly = payload["hourly"]
         
-        with file_path.open("r", encoding="utf-8") as f:
-            payload = json.load(f)
+        df = pd.DataFrame({
+            "batch_id": batch["batch_id"],
+            "ingested_at": pd.to_datetime(batch["ingested_at_utc"]),
+            "location_id": batch["location"]["location_id"],
+            "forecast_time": pd.to_datetime(hourly["time"]),
+            "temperature_2m": hourly["temperature_2m"],
+            "relative_humidity_2m": hourly["relative_humidity_2m"],
+            "precipitation": hourly["precipitation"],
+            "wind_speed_10m": hourly["wind_speed_10m"]
+        })
+        all_records.append(df)
 
-        # Extract metadata
-        batch_id = payload["batch_id"]
-        ingested_at = datetime.fromisoformat(payload["ingested_at_utc"])
-        location_id = payload["location"]["location_id"]
-        
-        # Extract hourly forecast arrays
-        hourly = payload["response"]["hourly"]
-        times = hourly["time"]
-        temps = hourly["temperature_2m"]
-        humidity = hourly["relative_humidity_2m"]
-        precip = hourly["precipitation"]
-        wind = hourly["wind_speed_10m"]
+    # Merge into a single master DataFrame
+    combined_df = pd.concat(all_records, ignore_index=True)
 
-        # Zip the columnar arrays into row-based tuples for ClickHouse
-        rows_to_insert = []
-        for i in range(len(times)):
-            row = (
-                batch_id,
-                ingested_at,
-                location_id,
-                datetime.fromisoformat(times[i]),
-                temps[i],
-                humidity[i],
-                precip[i],
-                wind[i]
-            )
-            rows_to_insert.append(row)
-
-        # Perform the bulk insert
-        client.insert(
-            table="raw_weather_forecasts",
-            data=rows_to_insert,
-            column_names=[
-                "batch_id", 
-                "ingested_at", 
-                "location_id", 
-                "forecast_time", 
-                "temperature_2m", 
-                "relative_humidity_2m", 
-                "precipitation", 
-                "wind_speed_10m"
-            ]
-        )
-        
-        logger.info("Inserted %d rows for batch %s", len(rows_to_insert), batch_id)
-
-        # Move file to processed directory to prevent double-loading
-        file_path.rename(ARCHIVE_DIR / file_path.name)
-        logger.info("Archived %s", file_path.name)
-
-if __name__ == "__main__":
+    # Open ONE connection and execute ONE bulk insert
+    con = duckdb.connect(f'md:weather_warehouse?motherduck_token={MOTHERDUCK_TOKEN}')
     try:
-        process_and_load_files()
-        logger.info("Database loading completed successfully.")
-    except Exception:
-        logger.exception("Failed to load data into ClickHouse")
-        raise SystemExit(1)
+        con.register('temp_df', combined_df)
+        con.execute("INSERT INTO weather_raw.raw_weather_forecasts SELECT * FROM temp_df")
+    finally:
+        con.close()
+
+    # Archive files only after successful database insertion
+    PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    for file_path in file_paths:
+        destination = PROCESSED_DATA_DIR / file_path.name
+        shutil.move(str(file_path), str(destination))
