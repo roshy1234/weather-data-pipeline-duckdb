@@ -3,7 +3,7 @@ import os
 import shutil
 from pathlib import Path
 
-import duckdb
+import duckdb  # type: ignore
 import pandas as pd
 from dotenv import load_dotenv
 
