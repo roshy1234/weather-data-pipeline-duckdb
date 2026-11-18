@@ -43,8 +43,37 @@ try:
     df = load_data()
     st.success("Successfully connected to MotherDuck!")
     
-    # Hide the raw data table inside an expander to save UI space
-    with st.expander("View Raw Data Table"):
+    # --- Expander 1: Data Model ---
+    with st.expander("View Data Model (Star Schema)", expanded=False):
+        # Using Mermaid syntax to draw the ER Diagram
+        mermaid_code = """
+        ```mermaid
+        erDiagram
+            dim_location ||--o{ fact_weather : "1 to Many"
+            
+            dim_location {
+                VARCHAR location_id PK
+                VARCHAR city_name
+                DECIMAL latitude
+                DECIMAL longitude
+            }
+            
+            fact_weather {
+                VARCHAR weather_fact_id PK
+                VARCHAR location_id FK
+                TIMESTAMP forecast_time
+                DOUBLE temperature_celsius
+                DOUBLE humidity_percentage
+                DOUBLE precipitation_mm
+                DOUBLE wind_speed_kmh
+            }
+        ```
+        """
+        st.markdown(mermaid_code)
+        st.caption("Star Schema: `dim_location` (Dimension) filters `fact_weather` (Fact table) via `location_id`.")
+        
+    # --- Expander 2: Raw Data ---
+    with st.expander("View Raw Data Table", expanded=False):
         st.dataframe(df)
 
     # 3. Draw the 4 lightweight graphs using Streamlit columns
