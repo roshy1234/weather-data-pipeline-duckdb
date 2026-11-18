@@ -11,8 +11,11 @@ jobs:
       - name: Run Pipeline Container
         env:
           MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
-          # Add any weather API keys here as well
+          PREFECT_API_URL: ${{ secrets.PREFECT_API_URL }}
+          PREFECT_API_KEY: ${{ secrets.PREFECT_API_KEY }}
         run: |
           docker run --rm \
             -e MOTHERDUCK_TOKEN="${MOTHERDUCK_TOKEN}" \
+            -e PREFECT_API_URL="${PREFECT_API_URL}" \
+            -e PREFECT_API_KEY="${PREFECT_API_KEY}" \
             ${{ secrets.DOCKERHUB_USERNAME }}/weather-pipeline-worker:latest
