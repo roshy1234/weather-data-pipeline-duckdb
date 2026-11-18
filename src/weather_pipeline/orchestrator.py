@@ -71,9 +71,4 @@ def main_flow():
     time.sleep(2)
 
 if __name__ == "__main__":
-    main_flow.serve(
-        name="daily-weather-pipeline-duckdb",
-        cron="0 12 * * *",  # Runs every day at 12:00 PM
-        tags=["weather", "production", "motherduck"],
-        description="End-to-end weather extraction, loading, and dbt transformation"
-    )
+    main_flow()
