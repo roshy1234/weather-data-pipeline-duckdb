@@ -1,125 +1,239 @@
-# Weather Data Pipeline & Analytics Hub
+# 🌤️ End-to-End Weather Data Pipeline (DuckDB & MotherDuck)
 
-An end-to-end, containerized ELT (Extract, Load, Transform) data engineering pipeline that ingests real-time meteorological data for **Kochi, Bengaluru, and Delhi**, transforms it into an analytical Star Schema, and visualizes key climate trends across interactive dashboards.
+An automated, serverless ELT data pipeline that extracts weather forecast data from the Open-Meteo API, models it into a Star Schema using **dbt** on **MotherDuck (Cloud DuckDB)**, orchestrates and monitors runs with **Prefect Cloud**, and visualizes forecast trends on **Streamlit Community Cloud**.
 
-## Architecture & Tech Stack
+Built with **serverless and free-tier services, subject to their quotas**—decoupling CI/CD builds from scheduled execution using ephemeral GitHub Actions runners and Docker containers, eliminating the need for an idle 24/7 virtual machine.
 
-* **Orchestration:** **Prefect Cloud** (with a custom containerized Prefect Worker) for workflow scheduling, task dependency management, retry logic, and pipeline observability.
+[![CI/CD](https://github.com/roshy1234/weather-data-pipeline-duckdb/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/roshy1234/weather-data-pipeline-duckdb/actions/workflows/ci-cd.yml)
+[![Daily Pipeline](https://github.com/roshy1234/weather-data-pipeline-duckdb/actions/workflows/run_pipeline.yml/badge.svg)](https://github.com/roshy1234/weather-data-pipeline-duckdb/actions/workflows/run_pipeline.yml)
 
-* **Data Warehouse:** **ClickHouse** serving as a high-performance, columnar OLAP database.
+![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
+![DuckDB](https://img.shields.io/badge/DuckDB%20%2F%20MotherDuck-FFF000?logo=duckdb&logoColor=black)
+![dbt](https://img.shields.io/badge/dbt-FF694B?logo=dbt&logoColor=white)
+![Prefect](https://img.shields.io/badge/Prefect-070E10?logo=prefect&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)
 
-* **Transformation:** **dbt (Data Build Tool)** for transforming raw tables from clickhouse into a clean, analytics-ready Star Schema inside the `weather_warehouse_analytics` database.
+🔗 **Live Dashboard:** [Weather Analytics Hub](https://weather-data-pipeline-duckdb.streamlit.app)
 
-* **Visualization (Dual Layer):**
+![Weather Analytics Hub Dashboard](./docs/images/streamlit_dashboard_graphs.png)
 
-  * **Streamlit:** Interactive Python web application (`Weather Analytics Hub`) deployed on Streamlit Community Cloud for exploring temperature, humidity, precipitation, and wind speed trends.
+---
 
-  * **Grafana OSS:** Lightweight operational dashboard connected via the official ClickHouse plugin for real-time monitoring.
+## 🏗️ Architecture
 
-* **Containerization & CI/CD:** **Docker & Docker Compose** for local orchestration, paired with **GitHub Actions** for automated linting, testing, and Continuous Delivery (CD) to Docker Hub.
+```mermaid
+flowchart LR
+    A[Open-Meteo API] -->|Extract| B[Docker Container<br/>Python 3.13 + Prefect + dbt]
+    G[GitHub Actions<br/>Daily Cron / Manual Trigger] -->|Pulls Image & Runs Ephemerally| B
+    D[Docker Hub<br/>Pre-built Image] -.->|Built via CI/CD on Push| G
+    B -->|Load & Transform| M[(MotherDuck<br/>weather_warehouse)]
+    B -->|Execution Logs & Telemetry| P[Prefect Cloud]
+    M -->|Star Schema Queries| S[Streamlit Community Cloud<br/>Weather Analytics Hub]
+```
 
-## Data Model (Star Schema)
+### Key Architectural Highlights
+* **Decoupled Build vs. Execution (CI/CD):** One GitHub Actions workflow lints code (`flake8`), builds the Docker image, and pushes it to Docker Hub on every push/PR to `main` or version tag. A second workflow pulls that pre-built image on a daily cron schedule without checking out source code or reinstalling dependencies.
+* **Ephemeral Serverless Compute:** Runs execute inside disposable `ubuntu-latest` containers via `docker run --rm`, running the Prefect flow once to completion and tearing down immediately to maintain zero infrastructure cost.
+* **Centralized Observability:** Even though compute is ephemeral, injecting `PREFECT_API_URL` and `PREFECT_API_KEY` streams real-time task states, run durations, and error logs directly to Prefect Cloud.
 
-The raw weather data is transformed via dbt into a dimensional Star Schema located in the `weather_warehouse_analytics` database:
+---
 
-### 1. Fact Table: `fact_weather`
+## 🛠️ Tech Stack
 
-Stores the granular time-series meteorological measurements.
+| Layer | Technology | Role |
+| :--- | :--- | :--- |
+| **Data Source** | Open-Meteo API | Hourly weather forecast data |
+| **Language** | Python 3.13 | Extraction, loading, and orchestration logic |
+| **Orchestration & Monitoring** | Prefect & Prefect Cloud | Flow/task orchestration, retries, and run observability |
+| **Transformation** | dbt | SQL transformations into dimensional analytics models |
+| **Data Warehouse** | DuckDB / MotherDuck | Serverless analytical cloud database (`weather_warehouse`) |
+| **Containerization** | Docker & Docker Hub | Reproducible runtime environment for pipeline execution |
+| **CI/CD & Scheduling** | GitHub Actions | Automated linting (`flake8`), image publishing, and cron execution |
+| **Visualization** | Streamlit | Interactive dashboard hosted on Streamlit Community Cloud |
 
-* `weather_fact_id`(Primary Key)
+---
 
-* `location_id` (Foreign Key)
+## 🗄️ Data Model (Star Schema)
 
-* `forecast_time` (Timestamp)
+Data is transformed by dbt into the `analytics` schema following a **One-to-Many (1:N)** Star Schema pattern, separating static city metadata from high-volume time-series weather observations:
 
-* `temperature_celsius` (Float)
+```mermaid
+erDiagram
+    dim_location ||--o{ fact_weather : "1 to Many"
 
-* `humidity_percentage` (Float)
+    dim_location {
+        VARCHAR location_id PK
+        VARCHAR city_name
+        DECIMAL latitude
+        DECIMAL longitude
+    }
 
-* `precipitation_mm` (Float)
+    fact_weather {
+        VARCHAR weather_fact_id PK
+        VARCHAR location_id FK
+        TIMESTAMP forecast_time
+        DOUBLE temperature_celsius
+        DOUBLE humidity_percentage
+        DOUBLE precipitation_mm
+        DOUBLE wind_speed_kmh
+    }
+```
 
-* `wind_speed_kmh` (Float)
+* **`analytics.dim_location`**: Stores one unique record per monitored city with coordinates (`DECIMAL(6,4)`).
+* **`analytics.fact_weather`**: Stores timestamped weather measurements linked to `dim_location` via `location_id`.
 
-### 2. Dimension Table: `dim_location`
+<details>
+<summary>📸 View Materialized Tables in MotherDuck</summary>
 
-Stores static geographical metadata for the tracked cities.
+![MotherDuck Star Schema Tables](./docs/images/weather-warehouse-motherduck.png)
 
-* `location_id` (Primary Key)
+</details>
 
-* `city_name` (String - e.g., Kochi, Bengaluru, Delhi)
+---
 
-* `latitude` (Float)
+## 📊 Dashboard Features
 
-* `longitude` (Float)
+The **Weather Analytics Hub** (Streamlit) connects directly to MotherDuck with connection caching (`@st.cache_resource`) and a 5-minute query TTL (`@st.cache_data(ttl=300)`):
+* **Interactive Data Model Expander:** Renders the Star Schema ER diagram directly inside the app.
+* **Raw Data Preview Expander:** Inspect the latest 150 joined records from `fact_weather` and `dim_location`.
+* **Multi-City Metrics:** Side-by-side time-series line charts tracking **Temperature (°C)**, **Humidity (%)**, **Precipitation (mm)**, and **Wind Speed (km/h)**.
 
-## Performance & Memory Optimizations
+---
 
-1. **Grafana OSS Footprint:** Uses the stripped-down `grafana-oss` image capped with `GOMEMLIMIT` and strict Docker deploy resource limits.
+## 📂 Project Structure
 
-2. **Zero-Leak Streamlit Caching:** Separates database connection caching (`@st.cache_resource`) from query result caching (`@st.cache_data(ttl=300)`) and uses native Altair line charts (`st.line_chart`) to prevent memory leaks and heavy library import penalties.
+```
+weather-data-pipeline-duckdb/
+├── .github/
+│   └── workflows/
+│       ├── ci-cd.yml              # CI/CD pipeline
+│       └── run_pipeline.yml       # Scheduled & manual pipeline execution
+├── sql/
+│   └── 01_create_raw_table.sql    # Raw weather table setup
+├── docs/                          # Project output screenshots
+│   └──images/
+│       ├── ci-cd-graph.png
+│       ├── prefect-cloud-run.png
+│       ├── streamlit_dashboard_graphs.png
+│       └── weather-warehouse-motherduck.png
+├── src/
+│   └── weather_pipeline/
+│       ├── ingestion.py           # Fetches weather API data
+│       ├── loader.py              # Loads data into MotherDuck
+│       └── orchestrator.py        # Prefect main flow entry point
+├── streamlit_app/
+│   ├── Dockerfile                 # Streamlit container specification
+│   ├── app.py                     # Streamlit dashboard
+│   └── requirements.txt           # Dashboard dependencies
+├── weather_transform/
+│   ├── analyses/
+│   ├── macros/
+│   │   ├── .gitkeep
+│   │   └── generate_schema_name.sql
+│   ├── models/
+│   │   ├── marts/
+│   │   │   ├── dim_location.sql
+│   │   │   └── fact_weather.sql
+│   │   ├── staging/
+│   │   │   └── stg_hourly_weather.sql
+│   │   ├── schema.yml
+│   │   └── sources.yml
+│   ├── seeds/
+│   ├── snapshots/
+│   ├── tests/
+│   │   ├── .gitkeep
+│   │   └── assert_no_duplicate_hours.sql
+│   ├── dbt_project.yml
+│   └── profiles.yml
+├── .dockerignore
+├── .gitignore
+├── compose.yaml                   # Docker Compose configuration
+├── Dockerfile                     # Pipeline worker container
+├── LICENSE
+├── README.md
+└── requirements.txt               # Pipeline dependencies
+```
+---
 
-## Local Setup & Installation
+## ⚙️ Environment Variables & Secrets
 
-### Prerequisites
+Create a local `.env` file for development, and add these keys under **GitHub Repository Settings → Secrets and variables → Actions** for automated runs:
 
-* Docker & Docker Compose (WSL2 backend recommended if on Windows)
+| Variable | Description |
+| :--- | :--- |
+| `MOTHERDUCK_TOKEN` | Authentication token for MotherDuck (`md:weather_warehouse`) |
+| `PREFECT_API_URL` | Prefect Cloud workspace API endpoint (`https://api.prefect.cloud/api/accounts/.../workspaces/...`) |
+| `PREFECT_API_KEY` | Prefect Cloud API key for logging flow telemetry |
+| `WEATHER_API_URL` | Open-Meteo forecast endpoint (`https://api.open-meteo.com/v1/forecast`) |
+| `DOCKERHUB_USERNAME` | Docker Hub username |
+| `DOCKERHUB_TOKEN` | Docker Hub access token |
 
-* A Prefect Cloud account & API Key
+---
 
-* Weather API credentials
+## 🚀 Running Locally
 
 ### 1. Clone the Repository
-
+```bash
+git clone https://github.com/roshy1234/weather-data-pipeline-duckdb.git
+cd weather-data-pipeline-duckdb
 ```
-git clone https://github.com/roshy1234/weather-data-pipeline.git
-cd weather-data-pipeline
+### 2. One-time MotherDuck setup
 
+Before the first pipeline run, initialize the raw table in your MotherDuck
+`weather_warehouse` database:
 
-```
+1. Open the MotherDuck SQL workspace and select `weather_warehouse`.
+2. Run the SQL in [`sql/01_create_raw_table.sql`](./sql/01_create_raw_table.sql).
 
-### 2. Configure Environment Variables
+Before running this setup or the pipeline, make sure `MOTHERDUCK_TOKEN` and the
+other required settings are configured as described in
+[Environment Variables & Secrets](#-environment-variables--secrets).
 
-Create a `.env` file in the root directory of the project:
+This creates the `weather_raw` schema and the
+`weather_raw.raw_weather_forecasts` table used by the pipeline. The script uses
+`IF NOT EXISTS`, so it is safe to run again if needed.
 
-```
-# ClickHouse Configuration
-CLICKHOUSE_HOST=clickhouse
-CLICKHOUSE_PORT=8123
-CLICKHOUSE_USER=default
-CLICKHOUSE_PASSWORD=your_secure_password
+Complete this setup once before running the pipeline locally or triggering its
+GitHub Actions workflow.
 
-# Prefect Configuration
-PREFECT_API_KEY=your_prefect_cloud_api_key
-PREFECT_API_URL=https://api.prefect.cloud/api/accounts/.../workspaces/...
+### 3. Run the Pipeline via Python
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 
-# Weather API URL
-WEATHER_API_URL="https://api.open-meteo.com/v1/forecast"
-
-
-```
-
-### 3. Launch the Stack
-
-Spin up the containers in detached mode:
-
-```
-docker compose up -d --build
-
-View the full container setup in [`compose.yml`](./compose.yml).
+# Execute the Prefect flow once
+python src/weather_pipeline/orchestrator.py
 ```
 
-### 4. Monitoring and Observability
+### 4. Run via Docker (Matches GitHub Actions Production Run)
+```bash
+docker run --rm \
+  --env-file .env \
+  roshyjamz/weather-pipeline-worker:latest
+```
 
-* **Grafana UI:** Accessible at `http://localhost:3000`
+### 5. Launch the Streamlit Dashboard
+```bash
+pip install -r streamlit_app/requirements.txt
+streamlit run streamlit_app/app.py
+```
 
-* **Streamlit UI (Local):** Accessible at `http://localhost:8501`
+---
 
-## CI/CD & Cloud Deployment
+## 🔄 Automated Workflows
 
-### Continuous Delivery (GitHub Actions to Docker Hub)
+1. **CI/CD (`Weather Pipeline CI/CD`)**
+   *  **Trigger:** Push to `main` or version tags (`*.*.*`).
+   *  **Actions:** Runs `flake8` syntax/undefined-name checks (`E9,F63,F7,F82`) on Python 3.13, then builds and pushes `:latest` and tagged images to Docker Hub.
+2. **Scheduled Execution (`Daily Weather Pipeline Execution`)**
+   *  **Trigger:** Daily cron or manual `workflow_dispatch` from the **Actions** tab.
+   *  **Actions:** Pulls the latest Docker image, injects runtime secrets, runs `main_flow()`, streams logs to Prefect Cloud, and destroys the container upon exit.
 
-A unified GitHub Actions workflow (`.github/workflows/ci-cd.yml`) automatically runs code quality checks on every push to `main`. Once tests pass, it builds and pushes the custom application images to two separate public Docker Hub repositories:
+### Pipeline Execution & Observability
 
-* `roshyjamz/weather-worker:latest` (Contains the Prefect flows, ingestion, loader, and dbt scripts)
-
-* `roshyjamz/weather-dashboard:latest` (Contains the Streamlit application)
+| GitHub Actions (CI/CD) | Prefect Cloud (Run Telemetry) |
+| :---: | :---: |
+| ![GitHub Actions Workflows](./docs/images/ci-cd-graph.png) | ![Prefect Cloud Completed Run](./docs/images/prefect-cloud-run.png) |
