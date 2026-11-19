@@ -157,6 +157,7 @@ weather-data-pipeline-duckdb/
 ```
 ---
 
+<a id="environment-variables"></a>
 ## ⚙️ Environment Variables & Secrets
 
 Create a local `.env` file for development, and add these keys under **GitHub Repository Settings → Secrets and variables → Actions** for automated runs:
@@ -189,7 +190,7 @@ Before the first pipeline run, initialize the raw table in your MotherDuck
 
 Before running this setup or the pipeline, make sure `MOTHERDUCK_TOKEN` and the
 other required settings are configured as described in
-[Environment Variables & Secrets](#-environment-variables--secrets).
+[Environment Variables & Secrets](#environment-variables).
 
 This creates the `weather_raw` schema and the
 `weather_raw.raw_weather_forecasts` table used by the pipeline. The script uses
