@@ -2,7 +2,7 @@
 
 An automated, serverless ELT data pipeline that extracts weather forecast data from the Open-Meteo API, models it into a Star Schema using **dbt** on **MotherDuck (Cloud DuckDB)**, orchestrates and monitors runs with **Prefect Cloud**, and visualizes forecast trends on **Streamlit Community Cloud**.
 
-Built with **serverless and free-tier services, subject to their quotas**—decoupling CI/CD builds from scheduled execution using ephemeral GitHub Actions runners and Docker containers, eliminating the need for an idle 24/7 virtual machine.
+Built with **serverless and free-tier services, subject to their quotas** decoupling CI/CD builds from scheduled execution using ephemeral GitHub Actions runners and Docker containers, eliminating the need for an idle 24/7 virtual machine.
 
 [![CI/CD](https://github.com/roshy1234/weather-data-pipeline-duckdb/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/roshy1234/weather-data-pipeline-duckdb/actions/workflows/ci-cd.yml)
 [![Daily Pipeline](https://github.com/roshy1234/weather-data-pipeline-duckdb/actions/workflows/run_pipeline.yml/badge.svg)](https://github.com/roshy1234/weather-data-pipeline-duckdb/actions/workflows/run_pipeline.yml)
@@ -61,6 +61,7 @@ Data is transformed by dbt into the `analytics` schema following a **One-to-Many
 
 ```mermaid
 erDiagram
+    direction LR
     dim_location ||--o{ fact_weather : "1 to Many"
 
     dim_location {
