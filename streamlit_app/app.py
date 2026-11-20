@@ -49,6 +49,7 @@ try:
         mermaid_code = """
         ```mermaid
         erDiagram
+            direction LR
             dim_location ||--o{ fact_weather : "1 to Many"
             
             dim_location {
