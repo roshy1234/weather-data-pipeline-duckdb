@@ -23,7 +23,7 @@ def fetch_weather(location: dict) -> dict:
         "latitude": location["latitude"],
         "longitude": location["longitude"],
         "hourly": ["temperature_2m", "relative_humidity_2m", "precipitation", "wind_speed_10m"],
-        "forecast_days": 2,
+        "forecast_days": 1,
         "timezone": "Asia/Kolkata",
     }
     response = requests.get(API_URL, params=params, timeout=20)
