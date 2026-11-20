@@ -52,10 +52,7 @@ def dbt_test_task():
 @flow(name="End-to-End Weather Pipeline")
 def main_flow():
     # Phase 1: Extract all APIs concurrently
-    extract_futures = []
-    for location in LOCATIONS:
-        future = extract_task.submit(location)
-        extract_futures.append(future)
+    extract_futures = [extract_task.submit(location) for location in LOCATIONS]
         
     # Wait for all API calls to finish and collect the file paths into a LIST
     raw_file_paths = [future.result() for future in extract_futures]
