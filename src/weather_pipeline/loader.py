@@ -45,8 +45,7 @@ def load_all_to_motherduck(file_paths: list[Path]) -> None:
     # Open ONE connection and execute ONE bulk insert
     con = duckdb.connect(f'md:weather_warehouse?motherduck_token={MOTHERDUCK_TOKEN}')
     try:
-        con.register('temp_df', combined_df)
-        con.execute("INSERT INTO weather_raw.raw_weather_forecasts SELECT * FROM temp_df")
+        con.execute("INSERT INTO weather_raw.raw_weather_forecasts SELECT * FROM combined_df")
     finally:
         con.close()
 
